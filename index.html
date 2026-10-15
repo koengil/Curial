@@ -217,7 +217,7 @@ img,svg,canvas{display:block}
 /* ── UI mockup (ported from ui-mockup.html, Curial palette) ──
    Fixed 640×528 composition, scaled to the column width by JS. */
 @keyframes spin{to{transform:rotate(360deg)}}
-.um-wrap{position:relative;width:100%;aspect-ratio:640/528}
+.um-wrap{position:relative;width:100%;aspect-ratio:640/528;overflow:hidden}
 .um{--um-ink:#162c24;--um-ink2:#4a5c53;--um-ink3:#7b8a82;--um-ink4:#c2cec5;--um-line:#e3eae4;--um-s2:#f8f9f7;
   --um-strong:#226b51;--um-medium:#2f8a68;--um-weak:#e3eee3;--um-jade:#4ae0bd;--um-soft:#e3eee3;
   position:absolute;left:0;top:0;width:640px;height:528px;transform-origin:0 0;transform:scale(var(--um-s,1));color:var(--um-ink);font-family:var(--sans)}
@@ -649,6 +649,16 @@ img,svg,canvas{display:block}
 .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .form .btn{justify-content:space-between;width:100%;margin-top:6px}
 .form .fine{font-size:13px;color:var(--text-d2)}
+/* Form errors: text + icon + 2px border, never colour alone; announced via the summary alert */
+.field-err{display:flex;align-items:center;gap:6px;font-size:13px;line-height:1.35;color:#b42318}
+.field-err:empty{display:none}
+.field-err::before{content:"!";flex:none;width:16px;height:16px;border-radius:50%;background:#b42318;color:#fff;display:grid;place-items:center;font:700 11px/1 var(--sans)}
+.field [aria-invalid="true"]{box-shadow:inset 0 0 0 2px #b42318}
+.field [aria-invalid="true"]:focus{box-shadow:inset 0 0 0 2px #b42318,0 0 0 3px rgba(180,35,24,.18)}
+.form-errors{font-size:14px;font-weight:500;line-height:1.4;color:#b42318;background:#fdecea;border-radius:10px;padding:10px 12px}
+.form-errors:empty{display:none}
+.field label .opt{color:var(--text-d2);font-weight:400}
+@media (max-width:380px){.nav-in>.btn .dot{display:none}.nav-in>.btn{padding:0 14px}}
 .copy{background:none;border:0;padding:13px 2px;color:var(--mint);font:500 13px var(--sans);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .done{display:none;text-align:center;padding:30px 10px;gap:12px;flex-direction:column;align-items:center}
 .form.sent>*:not(.done){display:none}
@@ -717,7 +727,8 @@ footer .logo circle{stroke:var(--green)}
   .nav.open ul{display:flex;flex-direction:column;position:absolute;top:66px;left:12px;right:12px;padding:10px;border-radius:22px;background:rgba(8,27,20,.96);box-shadow:inset 0 0 0 1px var(--line-d)}
   .nav.open ul a{padding:14px 16px;font-size:16px}
   .menu-btn{display:grid;place-items:center}
-  .nav-in>.btn{display:none}
+  .nav-in>.btn{height:40px;padding:0 6px 0 14px;font-size:14px;margin-left:auto}
+  .nav-in>.btn .dot{width:28px;height:28px}
 }
 @media (max-width:620px){
   .section,.quote,.cta{padding:90px 0}
@@ -1497,13 +1508,14 @@ footer .logo circle{stroke:var(--green)}
       </ul>
     </div>
     <form class="form rv" id="form" novalidate>
+      <div class="form-errors" id="formErrors" role="alert"></div>
       <div class="row2">
-        <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required placeholder="Alex Rivera"></div>
-        <div class="field"><label for="f-email">Work email</label><input id="f-email" name="email" type="email" autocomplete="email" required placeholder="alex@company.com"></div>
+        <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required placeholder="Alex Rivera"><p class="field-err" id="f-name-err"></p></div>
+        <div class="field"><label for="f-email">Work email</label><input id="f-email" name="email" type="email" autocomplete="email" required placeholder="alex@company.com"><p class="field-err" id="f-email-err"></p></div>
       </div>
-      <div class="field"><label for="f-co">Company</label><input id="f-co" name="company" autocomplete="organization" required placeholder="Company name"></div>
+      <div class="field"><label for="f-co">Company</label><input id="f-co" name="company" autocomplete="organization" required placeholder="Company name"><p class="field-err" id="f-co-err"></p></div>
       <div class="row2">
-        <div class="field"><label for="f-role">Role to start with</label><input id="f-role" name="role" placeholder="e.g. Account Executive"></div>
+        <div class="field"><label for="f-role">Role to start with <span class="opt">(optional)</span></label><input id="f-role" name="role" placeholder="e.g. Account Executive"></div>
         <div class="field"><label for="f-vol">Hires per year</label><select id="f-vol" name="volume"><option>Fewer than 20</option><option>20–100</option><option>100–500</option><option>500+</option></select></div>
       </div>
       <button class="btn" type="submit" aria-label="Request a demo">
@@ -1704,13 +1716,38 @@ footer .logo circle{stroke:var(--green)}
 
   /* Form: local confirmation (wire to your CRM endpoint) */
   const form = document.getElementById('form');
+  // Errors are written out in text, tied to each field (aria-invalid + aria-describedby)
+  // and counted in a role=alert summary, so they never rely on colour alone.
+  const rules = {
+    'f-name': v => v.trim() ? '' : 'Enter your name.',
+    'f-email': v => !v.trim() ? 'Enter your work email.' : (/^\S+@\S+\.\S+$/.test(v.trim()) ? '' : 'Enter an email like alex@company.com.'),
+    'f-co': v => v.trim() ? '' : 'Enter your company name.',
+  };
+  const summary = document.getElementById('formErrors');
+  const summarise = n => { summary.textContent = !n ? '' : n === 1 ? 'Please fix 1 field before sending.' : 'Please fix ' + n + ' fields before sending.'; };
+  function check(input) {
+    const msg = rules[input.id](input.value), err = document.getElementById(input.id + '-err');
+    err.textContent = msg;
+    if (msg) { input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-describedby', err.id); }
+    else { input.removeAttribute('aria-invalid'); input.removeAttribute('aria-describedby'); }
+    return !msg;
+  }
   form.addEventListener('submit', e => {
     e.preventDefault();
-    const bad = [...form.querySelectorAll('[required]')].find(i => !i.value.trim() || (i.type === 'email' && !/^\S+@\S+\.\S+$/.test(i.value)));
-    if (bad) { bad.focus(); bad.style.boxShadow = 'inset 0 0 0 1.5px #ff8a8a'; return; }
+    const bad = Object.keys(rules).map(id => document.getElementById(id)).filter(i => !check(i));
+    summarise(bad.length);
+    if (bad.length) { bad[0].focus(); return; }
     form.classList.add('sent');
   });
-  form.querySelectorAll('input').forEach(i => i.addEventListener('input', () => i.style.boxShadow = ''));
+  Object.keys(rules).forEach(id => {
+    const i = document.getElementById(id);
+    i.addEventListener('input', () => {
+      if (!i.hasAttribute('aria-invalid')) return;
+      check(i);
+      if (summary.textContent) summarise(form.querySelectorAll('[aria-invalid="true"]').length);
+    });
+    i.addEventListener('blur', () => { if (i.value.trim()) check(i); });
+  });
   document.getElementById('copyMail').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText('hello@curial.ai'); document.getElementById('copied').textContent = 'Copied'; } catch (_) { location.href = 'mailto:hello@curial.ai'; }
     setTimeout(() => document.getElementById('copied').textContent = '', 2000);
