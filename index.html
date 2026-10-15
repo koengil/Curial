@@ -77,6 +77,22 @@ img,svg,canvas{display:block}
 .menu-btn{display:none;background:none;border:0;color:var(--ink);width:44px;height:44px;border-radius:50%;cursor:pointer}
 .logo svg circle{stroke:var(--green)}
 
+/* Progressive blur along the bottom of the viewport (after insany.com.br): 8 stacked
+   backdrop blurs, each doubling (0.055px to 7px) and masked to its own band */
+.edge-blur{position:fixed;left:0;right:0;bottom:0;z-index:40;height:200px;pointer-events:none;transition:opacity .45s ease}
+.edge-blur.off{opacity:0}  /* hidden at the very end of the page, back as soon as you scroll up */
+.edge-blur i{position:absolute;inset:0;--a:calc(var(--n)*12.5%)}
+.edge-blur i{-webkit-mask-image:linear-gradient(transparent calc(var(--a) - 12.5%),#000 var(--a),#000 calc(var(--a) + 12.5%),transparent calc(var(--a) + 25%));mask-image:linear-gradient(transparent calc(var(--a) - 12.5%),#000 var(--a),#000 calc(var(--a) + 12.5%),transparent calc(var(--a) + 25%))}
+.edge-blur i:nth-child(1){--n:1;z-index:1;-webkit-backdrop-filter:blur(.055px);backdrop-filter:blur(.055px)}
+.edge-blur i:nth-child(2){--n:2;z-index:2;-webkit-backdrop-filter:blur(.11px);backdrop-filter:blur(.11px)}
+.edge-blur i:nth-child(3){--n:3;z-index:3;-webkit-backdrop-filter:blur(.22px);backdrop-filter:blur(.22px)}
+.edge-blur i:nth-child(4){--n:4;z-index:4;-webkit-backdrop-filter:blur(.44px);backdrop-filter:blur(.44px)}
+.edge-blur i:nth-child(5){--n:5;z-index:5;-webkit-backdrop-filter:blur(.875px);backdrop-filter:blur(.875px)}
+.edge-blur i:nth-child(6){--n:6;z-index:6;-webkit-backdrop-filter:blur(1.75px);backdrop-filter:blur(1.75px)}
+.edge-blur i:nth-child(7){--n:7;z-index:7;-webkit-backdrop-filter:blur(3.5px);backdrop-filter:blur(3.5px);-webkit-mask-image:linear-gradient(transparent 75%,#000 87.5%);mask-image:linear-gradient(transparent 75%,#000 87.5%)}
+.edge-blur i:nth-child(8){--n:8;z-index:8;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);-webkit-mask-image:linear-gradient(transparent 87.5%,#000);mask-image:linear-gradient(transparent 87.5%,#000)}
+@media (max-width:620px){.edge-blur{height:120px}}
+
 /* ── Hero ─────────────────────────────────────────────────── */
 .dark{background:var(--deep);color:var(--text-d)}
 /* Hero: inset dark frame, centred wordmark + intro, product dashboard rising from the bottom edge */
@@ -759,6 +775,7 @@ footer .logo circle{stroke:var(--green)}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<div class="edge-blur" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
 <header class="nav" id="nav">
   <div class="nav-in">
@@ -1699,6 +1716,11 @@ footer .logo circle{stroke:var(--green)}
     });
   }
 
+  const edgeBlur = document.querySelector('.edge-blur');
+  function edgeBlurTone() {
+    edgeBlur.classList.toggle('off', innerHeight + scrollY >= document.documentElement.scrollHeight - 4);
+  }
+
   let ticking = false;
   /* Hero fold, measured from insany.com.br: per px scrolled the frame moves down .22px,
      loses .0061% of its scale and rotates .0613° on X (no perspective, so it flattens). */
@@ -1709,8 +1731,9 @@ footer .logo circle{stroke:var(--green)}
     frame.style.transform = y > 0 ? `translateY(${(y * .22).toFixed(1)}px) scale(${(1 - y * .0000613).toFixed(4)}) rotateX(${(-y * .0613).toFixed(2)}deg)` : '';
   }
 
-  addEventListener('scroll', () => { if (ticking) return; ticking = true; requestAnimationFrame(() => { lightWords(); navTone(); tiltDevice(); foldHero(); ticking = false; }); }, { passive: true });
-  lightWords(); navTone(); tiltDevice(); foldHero();
+  addEventListener('scroll', () => { if (ticking) return; ticking = true; requestAnimationFrame(() => { lightWords(); navTone(); tiltDevice(); foldHero(); edgeBlurTone(); ticking = false; }); }, { passive: true });
+  lightWords(); navTone(); tiltDevice(); foldHero(); edgeBlurTone();
+  addEventListener('resize', edgeBlurTone);
 
   /* Marquee pause (WCAG 2.2.2) */
   const pb = document.getElementById('pauseBtn'), mq = document.getElementById('marquee');
